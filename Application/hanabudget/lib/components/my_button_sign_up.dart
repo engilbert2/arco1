@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class MyButtonSignUp extends StatelessWidget {
-  final Function()? onTap;
+  final VoidCallback? onTap;
   const MyButtonSignUp({super.key, required this.onTap});
 
   @override
@@ -9,18 +9,21 @@ class MyButtonSignUp extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(25.0),
-        margin: EdgeInsets.symmetric(horizontal: 25),
+        padding: const EdgeInsets.all(20.0),
+        margin: const EdgeInsets.symmetric(horizontal: 25),
         decoration: BoxDecoration(
-          color: Color.fromARGB(255, 189, 188, 188),
+          color: const Color(0xFF00B8D4), // teal-ish blue background
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Center(
-          child: Text("Sign Up",
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16)),
+          child: Text(
+            "Sign Up",
+            style: TextStyle(
+              color: Colors.white, // white text for good contrast
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
         ),
       ),
     );

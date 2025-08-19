@@ -1,25 +1,14 @@
-import 'package:hive/hive.dart';
-
-part 'user.g.dart'; // This should match the generated file name
-
-@HiveType(typeId: 0)
+// user.dart - Updated for MongoDB
 class User {
-  @HiveField(0)
+  final String? id; // MongoDB ObjectId
   final String username;
-
-  @HiveField(1)
   final String firstName;
-
-  @HiveField(2)
-  String password; // Removed 'final' to allow updating
-
-  @HiveField(3)
+  String password;
   final String securityQuestion;
-
-  @HiveField(4)
   final String securityAnswer;
 
   User({
+    this.id,
     required this.username,
     required this.firstName,
     required this.password,
@@ -27,9 +16,43 @@ class User {
     required this.securityAnswer,
   });
 
-  // Optional: Add a setter for password if you want to include additional logic
+  // Convert from MongoDB document to User object
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['_id']?.toString(),
+      username: json['username'],
+      firstName: json['firstName'],
+      password: json['password'],
+      securityQuestion: json['securityQuestion'],
+      securityAnswer: json['securityAnswer'],
+    );
+  }
+
+  // Convert User object to MongoDB document
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = {
+      'username': username,
+      'firstName': firstName,
+      'password': password,
+      'securityQuestion': securityQuestion,
+      'securityAnswer': securityAnswer,
+    };
+
+    // Only include _id if it exists (for updates)
+    if (id != null) {
+      data['_id'] = id;
+    }
+
+    return data;
+  }
+
+  // Update password method
   set updatePassword(String newPassword) {
-    // Here you could include validation or encryption before setting the password
     password = newPassword;
+  }
+
+  @override
+  String toString() {
+    return 'User(id: $id, username: $username, firstName: $firstName)';
   }
 }

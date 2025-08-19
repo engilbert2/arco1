@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hanabudget/data/budget_data.dart';
 import 'package:hanabudget/data/expense_data.dart';
-import 'package:hanabudget/models/budget_item.dart';
-import 'package:hanabudget/models/expense_item.dart';
+import 'package:hanabudget/models/budget_item.dart' as budget;
+import 'package:hanabudget/models/expense_item.dart' as expense;
 import 'package:hanabudget/pages/budget_creator.dart';
 import 'package:provider/provider.dart';
 
@@ -10,50 +10,57 @@ class BudgetPage extends StatefulWidget {
   const BudgetPage({super.key});
 
   @override
-  State<BudgetPage> createState() => _BudgetPage();
+  State<BudgetPage> createState() => _BudgetPageState(); // Fixed class name
 }
 
-class _BudgetPage extends State<BudgetPage> {
+class _BudgetPageState extends State<BudgetPage> { // Fixed class name
   double progress(String category) {
-    List<ExpenseItem> expenses =
+    List<expense.ExpenseItem> expenses =
         Provider.of<ExpenseData>(context).overallExpenseList;
 
-    List<ExpenseItem> specificExpenses = [];
-
+    List<expense.ExpenseItem> specificExpenses = [];
     double amount = 0.0;
 
+    // Filter expenses by category
     for (var i = 0; i < expenses.length; i++) {
       if (expenses[i].category == category) {
         specificExpenses.add(expenses[i]);
       }
     }
 
-    for (ExpenseItem expense in specificExpenses) {
-      amount = double.parse(expense.amount);
+    // Calculate total amount for the category
+    for (expense.ExpenseItem expenseItem in specificExpenses) {
+      amount += double.tryParse(expenseItem.amount) ?? 0.0; // Fixed: use += and tryParse
     }
-    if (amount <= 0.0) {
+
+    // Get budget limit for the category
+    double budgetAmount = double.tryParse(budgetLimit(category)) ?? 100.0;
+
+    if (budgetAmount <= 0.0) {
       return 0.0;
     } else {
-      return amount / 100;
+      double progressValue = amount / budgetAmount;
+      return progressValue > 1.0 ? 1.0 : progressValue; // Cap at 1.0 (100%)
     }
   }
 
   String specificTotal(String category) {
-    List<ExpenseItem> expenses =
+    List<expense.ExpenseItem> expenses =
         Provider.of<ExpenseData>(context).overallExpenseList;
 
-    List<ExpenseItem> specificExpenses = [];
-
+    List<expense.ExpenseItem> specificExpenses = [];
     double amount = 0.0;
 
+    // Filter expenses by category
     for (var i = 0; i < expenses.length; i++) {
       if (expenses[i].category == category) {
         specificExpenses.add(expenses[i]);
       }
     }
 
-    for (ExpenseItem expense in specificExpenses) {
-      amount = double.parse(expense.amount);
+    // Calculate total amount for the category
+    for (expense.ExpenseItem expenseItem in specificExpenses) {
+      amount += double.tryParse(expenseItem.amount) ?? 0.0; // Fixed: use += and tryParse
     }
 
     String amountString = amount.toStringAsFixed(2);
@@ -61,133 +68,122 @@ class _BudgetPage extends State<BudgetPage> {
   }
 
   String budgetLimit(String category) {
-    List<BudgetItem> budgets = Provider.of<BudgetData>(context).budgetList;
-    BudgetItem specificCategory = budgets[0];
+    List<budget.BudgetItem> budgets = Provider.of<BudgetData>(context).budgetList;
+
+    // Handle empty budget list
+    if (budgets.isEmpty) {
+      return "100.00"; // Default budget limit
+    }
+
+    budget.BudgetItem? specificCategory; // Made nullable
+
+    // Find the specific category budget
     for (var i = 0; i < budgets.length; i++) {
       if (budgets[i].category == category) {
         specificCategory = budgets[i];
+        break; // Exit loop once found
       }
     }
-    return specificCategory.amount;
+
+    // Return the budget amount or default if not found
+    return specificCategory?.amount ?? "100.00";
+  }
+
+  // Helper method to get progress bar color based on usage
+  Color getProgressColor(String category) {
+    double progressValue = progress(category);
+    if (progressValue >= 1.0) {
+      return Colors.red; // Over budget
+    } else if (progressValue >= 0.8) {
+      return Colors.orange; // Close to budget
+    } else {
+      return const Color(0xFF1ED891); // Within budget
+    }
+  }
+
+  // Helper method to build budget row
+  Widget buildBudgetRow(String category) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "\t$category",
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              "\$${specificTotal(category)} / \$${budgetLimit(category)}\t",
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        LinearProgressIndicator(
+          backgroundColor: Colors.grey[300],
+          color: getProgressColor(category),
+          value: progress(category),
+        ),
+        const SizedBox(height: 30),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const BudgetCreator()),
-            );
-          },
-          child: const Icon(Icons.add),
-          backgroundColor: const Color(0xFF1ED891),
-        ),
-        body: Column(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const BudgetCreator()),
+          );
+        },
+        backgroundColor: const Color(0xFF1ED891),
+        child: const Icon(Icons.add),
+      ),
+      body: SingleChildScrollView( // Added to prevent overflow
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 200),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("\tFood",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text("\$${specificTotal("Food")} / \$100\t",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ))
-            ]),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: Colors.grey[300],
-              color: Colors.red,
-              value: progress("Food"),
+
+            // Title
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                "Budget Overview",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
             ),
-            const SizedBox(height: 30),
-            // Transportation
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("\tTransportation",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text("\$${specificTotal("Transportation")} / \$100\t",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ))
-            ]),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: Colors.grey[300],
-              color: Colors.red,
-              value: progress("Transportation"),
+            const SizedBox(height: 20),
+
+            // Budget categories
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                children: [
+                  buildBudgetRow("Food"),
+                  buildBudgetRow("Transportation"),
+                  buildBudgetRow("Utilities"),
+                  buildBudgetRow("Entertainment"),
+                  buildBudgetRow("Health"),
+                ],
+              ),
             ),
-            const SizedBox(height: 30),
-            // Utilities
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("\tUtilities",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text("\$${specificTotal("Utilities")} / \$100\t",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ))
-            ]),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: Colors.grey[300],
-              color: Colors.red,
-              value: progress("Utilities"),
-            ),
-            const SizedBox(height: 30),
-            // Entertainment
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("\tEntertainment",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text("\$${specificTotal("Entertainment")} / \$100\t",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ))
-            ]),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: Colors.grey[300],
-              color: Colors.red,
-              value: progress("Entertainment"),
-            ),
-            const SizedBox(height: 30),
-            //Health
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("\tHealth",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text("\$${specificTotal("Health")} / \$100\t",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ))
-            ]),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: Colors.grey[300],
-              color: Colors.red,
-              value: progress("Health"),
-            ),
-            const SizedBox(height: 30),
           ],
-        ));
+        ),
+      ),
+    );
   }
 }

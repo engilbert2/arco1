@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_custom_clippers/flutter_custom_clippers.dart';
-import 'package:hanabudget/pages/budget_page.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:hanabudget/pages/login_page.dart';
+import 'package:hanabudget/pages/main_page.dart';
 import 'package:hanabudget/data/expense_data.dart';
 import 'package:hanabudget/models/expense_item.dart';
-import 'package:hanabudget/pages/main_page.dart';
-import 'package:hanabudget/pages/graph_page.dart';
-import 'package:hive/hive.dart';
-import 'package:hanabudget/pages/expense_adder.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +17,63 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final newExpenseNameController = TextEditingController();
   final newExpenseAmountController = TextEditingController();
+  bool _isLoading = true;
+  String _userName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+      final firstName = prefs.getString('firstName') ?? '';
+      final lastName = prefs.getString('lastName') ?? '';
+      final username = prefs.getString('username') ?? '';
+
+      if (isLoggedIn) {
+        setState(() {
+          String fullName = (firstName + " " + lastName).trim();
+          if (fullName.isEmpty) {
+            fullName = username.isNotEmpty ? username : "User";
+          }
+          _userName = fullName;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+        _redirectToLogin();
+      }
+    } catch (e) {
+      print('Initialization error: $e');
+      setState(() {
+        _userName = 'User';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _redirectToLogin() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // ✅ Clear session
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
 
   void addNewExpense() {
     showDialog(
@@ -28,8 +83,15 @@ class _HomePageState extends State<HomePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: newExpenseNameController),
-            TextField(controller: newExpenseAmountController),
+            TextField(
+              controller: newExpenseNameController,
+              decoration: const InputDecoration(hintText: 'Expense Name'),
+            ),
+            TextField(
+              controller: newExpenseAmountController,
+              decoration: const InputDecoration(hintText: 'Amount'),
+              keyboardType: TextInputType.number,
+            ),
           ],
         ),
         actions: [
@@ -47,106 +109,38 @@ class _HomePageState extends State<HomePage> {
   }
 
   void save() {
-    final newExpense = ExpenseItem(
-      name: newExpenseNameController.text,
-      amount: newExpenseAmountController.text,
-      dateTime: DateTime.now(),
-      category: 'Other',
-    );
-    Provider.of<ExpenseData>(context, listen: false).addNewExpense(newExpense);
-    Navigator.pop(context);
-    clear();
-  }
+    String expenseName = newExpenseNameController.text;
+    String expenseAmount = newExpenseAmountController.text;
 
-  void clear() {
-    newExpenseNameController.clear();
-    newExpenseAmountController.clear();
-  }
+    if (expenseName.isNotEmpty && expenseAmount.isNotEmpty) {
+      ExpenseItem newExpense = ExpenseItem(
+        name: expenseName,
+        amount: expenseAmount,
+        dateTime: DateTime.now(),
+        category: 'General', // ✅ default category
+      );
 
-  int _page = 0;
+      Provider.of<ExpenseData>(context, listen: false).addNewExpense(newExpense);
 
-  Widget bodyFunction() {
-    Widget currentPage;
-    switch (_page) {
-      case 0:
-        currentPage = const MainPage();
-        break;
-      case 1:
-        currentPage = const BudgetPage();
-        break;
-      case 2:
-        currentPage = const GraphPage();
-        break;
-      default:
-        currentPage = const MainPage();
+      // ✅ clear text fields
+      newExpenseNameController.clear();
+      newExpenseAmountController.clear();
     }
 
-    return Stack(
-      alignment: Alignment.topCenter,
-      children: [
-        ClipPath(
-          clipper: OvalBottomBorderClipper(),
-          child: Container(
-            width: MediaQuery.of(context).size.width,
-            height: 200.0,
-            color: const Color(0xFF1ED891),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 20),
-          child: currentPage,
-        ),
-      ],
-    );
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddExpense()),
-          );
-        },
-        child: const Icon(Icons.add),
-        backgroundColor: const Color(0xFF1ED891),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6.0,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.account_balance),
-              onPressed: () => setState(() => _page = 0),
-            ),
-            IconButton(
-              icon: const Icon(Icons.account_balance_wallet_outlined),
-              onPressed: () => setState(() => _page = 1),
-            ),
-            const SizedBox(width: 48),
-            IconButton(
-              icon: const Icon(Icons.bar_chart_outlined),
-              onPressed: () => setState(() => _page = 2),
-            ),
-            IconButton(
-              icon: const Icon(Icons.exit_to_app),
-              onPressed: () async {
-                var settingsBox = await Hive.openBox('settingsBox');
-                await settingsBox
-                    .delete('loggedInUser'); // Clear loggedInUser key
-                Navigator.pushReplacementNamed(context, '/login');
-              },
-            )
-          ],
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Scaffold(
+      body: SafeArea(
+        child: MainPage(
+          username: _userName,
+          onAddExpense: addNewExpense, // ✅ pass callback
         ),
       ),
-      body: bodyFunction(),
     );
   }
 }
