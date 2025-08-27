@@ -4,7 +4,8 @@ import 'package:hanabudget/components/my_button.dart';
 import 'package:hanabudget/components/my_button_sign_up.dart';
 import 'package:hanabudget/database/mongo_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:hanabudget/pages/home_page.dart';   // ✅ Import HomePage
+import 'package:hanabudget/screens/verification_screen.dart';
+import 'package:hanabudget/screens/captcha_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,12 +20,19 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    print('🚀 LoginPage initialized');
+  }
+
+  @override
   void dispose() {
     usernameController.dispose();
     passwordController.dispose();
     super.dispose();
   }
 
+  // Sign user in method
   Future<void> signUserIn(BuildContext context) async {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
@@ -37,30 +45,45 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     setState(() => _isLoading = true);
+    print('🔍 Attempting login for user: $username');
 
     try {
-      // ✅ Authenticate with MongoDB
+      // Ensure MongoDB connection
+      await MongoDBService().connect();
+
+      // Authenticate with MongoDB
       final user = await MongoDBService().authenticateUser(username, password);
 
       if (user != null) {
-        // ✅ Save session info in SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('username', user['username'] ?? '');
-        await prefs.setString('firstName', user['firstName'] ?? '');
-        await prefs.setString('lastName', user['lastName'] ?? '');
+        print('✅ User authenticated successfully: ${user['username']}');
+        print('📧 User email: ${user['email']}');
 
-        // ✅ Navigate to HomePage
+        // Check if email is available for 2FA
+        if (user['email'] == null || user['email'].toString().trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No email found for this account. Please contact support.')),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        // Navigate to 2FA verification screen for ALL users
+        print('➡️ Navigating to 2FA Verification (Required for all users)');
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(
+            builder: (context) => VerificationScreen(userData: user),
+          ),
         );
       } else {
+        print('❌ Authentication failed - incorrect credentials');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Incorrect username or password')),
         );
       }
     } catch (e) {
+      print('❌ Error during authentication: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login failed: $e')),
       );
@@ -71,6 +94,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    print('🏗️ LoginPage building UI');
     return Scaffold(
       appBar: AppBar(automaticallyImplyLeading: false),
       backgroundColor: Colors.white,
@@ -83,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 10),
                 Image.asset('assets/images/logo.png', width: 200, height: 200),
-                const SizedBox(height: 30), // ⬅️ directly jump to spacing
+                const SizedBox(height: 30),
 
                 // Username input
                 MyTextField(
@@ -122,7 +146,10 @@ class _LoginPageState extends State<LoginPage> {
                 // Login button
                 _isLoading
                     ? const CircularProgressIndicator()
-                    : MyButton(onTap: () => signUserIn(context)),
+                    : MyButton(
+                  onTap: () => signUserIn(context),
+                  text: 'Sign In',
+                ),
 
                 const SizedBox(height: 10),
                 const Text("Don't have an account?"),

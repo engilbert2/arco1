@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hanabudget/components/my_text_field.dart';
 import 'package:hanabudget/components/my_button_forgot.dart';
-import 'package:hanabudget/models/user.dart';
-import 'package:hive/hive.dart';
 
 class ForgotPage extends StatefulWidget {
-  ForgotPage({Key? key}) : super(key: key);
+  const ForgotPage({Key? key}) : super(key: key);
 
   @override
   _ForgotPageState createState() => _ForgotPageState();
@@ -26,33 +24,29 @@ class _ForgotPageState extends State<ForgotPage> {
   ];
 
   void verifyAndUpdatePassword(BuildContext context) async {
-    var box = Hive.box<User>('userBox');
-    var user = box.get(usernameController.text);
+    // ⚠️ Replace this with your actual MongoDB lookup and update
+    String username = usernameController.text.trim();
+    String answer = answerController.text.trim();
+    String newPassword = newPasswordController.text.trim();
 
-    if (user != null &&
-        user.securityQuestion == selectedSecurityQuestion &&
-        user.securityAnswer == answerController.text) {
-      user.password = newPasswordController.text;
-      await box.put(user.username, user);
+    if (username.isEmpty || selectedSecurityQuestion == null || answer.isEmpty || newPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
 
-      var settingsBox = await Hive.openBox('settingsBox');
-      await settingsBox.put('loggedInUser', user.username);
+    // TODO: Replace with your real MongoDB query/update
+    bool success = true; // mock for now
 
-      var updatedUser = box.get(user.username);
-
-      if (updatedUser != null) {
-        setState(() {});
-
-        Navigator.pushReplacementNamed(context, '/home',
-            arguments: updatedUser.firstName);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to fetch user data')),
-        );
-      }
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated successfully')),
+      );
+      Navigator.pushReplacementNamed(context, '/login');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Incorrect username or security question')),
+        const SnackBar(content: Text('Incorrect details, try again')),
       );
     }
   }
@@ -61,54 +55,53 @@ class _ForgotPageState extends State<ForgotPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        title: const Text("Forgot Password"),
+        automaticallyImplyLeading: true,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
               Image.asset('assets/images/tinylogo.png',
                   width: 100, height: 100),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               MyTextField(
                 controller: usernameController,
                 hintText: 'Username',
                 obscureText: false,
               ),
-              SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30.0),
-                child: DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  value: selectedSecurityQuestion,
-                  hint: Text("Select a Security Question"),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      selectedSecurityQuestion = newValue;
-                    });
-                  },
-                  items: securityQuestions
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: selectedSecurityQuestion,
+                hint: const Text("Select a Security Question"),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    selectedSecurityQuestion = newValue;
+                  });
+                },
+                items: securityQuestions
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               MyTextField(
                 controller: answerController,
                 hintText: 'Answer to Security Question',
                 obscureText: false,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               MyTextField(
                 controller: newPasswordController,
                 hintText: 'New Password',
                 obscureText: true,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               MyButtonForgot(
                 onTap: () => verifyAndUpdatePassword(context),
               ),

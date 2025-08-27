@@ -1,7 +1,9 @@
 import 'package:mongo_dart/mongo_dart.dart';
+import 'dart:math';
 
 class MongoDBService {
-  // Use the full connection string with SSL options
+  // Move credentials to a separate config file or environment variables
+  // For development, you can keep it here, but for production, use secure storage
   static const String _connectionString = 'mongodb+srv://engilbertreyes2:Learnjava12261999%2A@cluster0.warxlph.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
   static const String _databaseName = 'Arcodb';
 
@@ -10,6 +12,7 @@ class MongoDBService {
   static DbCollection? _usersCollection;
   static DbCollection? _expensesCollection;
   static DbCollection? _budgetsCollection;
+  static DbCollection? _verificationTokensCollection;
 
   // Add a flag to track initialization
   static bool _isInitialized = false;
@@ -39,6 +42,14 @@ class MongoDBService {
       throw StateError('MongoDB collections not initialized. Call connect() first.');
     }
     return _budgetsCollection!;
+  }
+
+  // Add to the getter methods
+  static DbCollection get verificationTokensCollection {
+    if (_verificationTokensCollection == null) {
+      throw StateError('MongoDB collections not initialized. Call connect() first.');
+    }
+    return _verificationTokensCollection!;
   }
 
   // Helper method to convert ObjectId to String safely
@@ -89,8 +100,10 @@ class MongoDBService {
         _usersCollection = _db!.collection('users');
         _expensesCollection = _db!.collection('expenses');
         _budgetsCollection = _db!.collection('budgets');
+        // Add to the connect() method after initializing other collections
+        _verificationTokensCollection = _db!.collection('verification_tokens');
 
-        print('✅ Collections initialized: users, expenses, budgets');
+        print('✅ Collections initialized: users, expenses, budgets, verification_tokens');
         _isInitialized = true;
 
         print('✅ Connected to MongoDB Atlas successfully');
@@ -127,16 +140,92 @@ class MongoDBService {
       _usersCollection = null;
       _expensesCollection = null;
       _budgetsCollection = null;
+      _verificationTokensCollection = null;
     }
   }
 
-  // User Operations
+  // Add to MongoDBService class
+  Future<bool> is2FAEnabled(String userId) async {
+    try {
+      await _ensureConnected();
+      var user = await usersCollection.findOne(
+          where.eq('_id', ObjectId.fromHexString(userId))
+      );
+
+      return user != null && user['is2FAEnabled'] == true;
+    } catch (e) {
+      print('Error checking 2FA status: $e');
+      return false;
+    }
+  }
+
+  // Add these methods to the MongoDBService class
+  // Generate and store a verification token
+  Future<String> generateVerificationToken(String userId, String email) async {
+    try {
+      await _ensureConnected();
+
+      // Generate a 6-digit code
+      String token = (100000 + Random().nextInt(900000)).toString();
+      int expiresAt = DateTime.now().add(Duration(minutes: 15)).millisecondsSinceEpoch;
+
+      // Remove any existing tokens for this user
+      await verificationTokensCollection.deleteMany(
+          where.eq('userId', ObjectId.fromHexString(userId))
+      );
+
+      // Store the new token
+      await verificationTokensCollection.insertOne({
+        'userId': ObjectId.fromHexString(userId),
+        'token': token,
+        'expiresAt': expiresAt,
+        'createdAt': DateTime.now(),
+      });
+
+      return token;
+    } catch (e) {
+      print('Error generating verification token: $e');
+      throw Exception('Failed to generate verification token');
+    }
+  }
+
+  // Verify a token
+  Future<bool> verifyToken(String userId, String token) async {
+    try {
+      await _ensureConnected();
+
+      var tokenRecord = await verificationTokensCollection.findOne(
+          where.eq('userId', ObjectId.fromHexString(userId))
+              .eq('token', token)
+              .gt('expiresAt', DateTime.now().millisecondsSinceEpoch)
+      );
+
+      if (tokenRecord != null) {
+        // Delete the token after successful verification
+        await verificationTokensCollection.deleteOne(
+            where.eq('_id', tokenRecord['_id'])
+        );
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error verifying token: $e');
+      return false;
+    }
+  }
+
+  // Update the authenticateUser method to check 2FA status
   Future<Map<String, dynamic>?> authenticateUser(String username, String password) async {
     try {
       await _ensureConnected();
       var user = await usersCollection.findOne(where.eq('username', username));
       if (user != null && user['password'].toString() == password) {
-        return _processDocument(user);
+        // Check if 2FA is enabled
+        bool is2FAEnabled = user['is2FAEnabled'] == true;
+        var processedUser = _processDocument(user);
+        processedUser['is2FAEnabled'] = is2FAEnabled;
+        return processedUser;
       }
       return null;
     } catch (e) {
@@ -181,6 +270,7 @@ class MongoDBService {
       }
 
       // Ensure all data is in the correct format
+      // In the createUser method in mongo_database.dart, update the cleanUserData
       var cleanUserData = {
         'username': username, // Use the cleaned username
         'firstName': userData['firstName'].toString().trim(),
@@ -192,6 +282,7 @@ class MongoDBService {
         'createdAt': DateTime.now(),
         'isActive': true,
         'role': 'user',
+        'is2FAEnabled': false, // Default to disabled
       };
 
       print('Creating user with data: ${cleanUserData['username']}');
@@ -215,6 +306,7 @@ class MongoDBService {
               .set('lastName', updateData['lastName'])
               .set('email', updateData['email'])
               .set('updatedAt', updateData['updatedAt'])
+              .set('is2FAEnabled', updateData['is2FAEnabled'] ?? false) // Add 2FA update
       );
       return result.isSuccess;
     } catch (e) {
@@ -438,5 +530,19 @@ class MongoDBService {
     }
   }
 
-
+  // Add to MongoDBService class
+  Future<bool> toggle2FA(String userId, bool enable) async {
+    try {
+      await _ensureConnected();
+      var result = await usersCollection.updateOne(
+          where.eq('_id', ObjectId.fromHexString(userId)),
+          modify.set('is2FAEnabled', enable)
+              .set('updatedAt', DateTime.now())
+      );
+      return result.isSuccess;
+    } catch (e) {
+      print('Error toggling 2FA: $e');
+      return false;
+    }
+  }
 }

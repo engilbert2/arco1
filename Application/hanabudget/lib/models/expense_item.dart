@@ -1,79 +1,45 @@
-// budget_item.dart - Updated for MongoDB
-class BudgetItem {
-  final String? id; // MongoDB ObjectId
-  final String amount;
-  final String category;
-  final String? userId; // Link to user
+import 'package:hive/hive.dart';
 
-  BudgetItem({
-    this.id,
-    required this.amount,
-    required this.category,
-    this.userId,
-  });
+part 'expense_item.g.dart';
 
-  factory BudgetItem.fromJson(Map<String, dynamic> json) {
-    return BudgetItem(
-      id: json['_id']?.toString(),
-      amount: json['amount'],
-      category: json['category'],
-      userId: json['userId'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {
-      'amount': amount,
-      'category': category,
-    };
-
-    if (id != null) data['_id'] = id;
-    if (userId != null) data['userId'] = userId;
-
-    return data;
-  }
-}
-
-// expense_item.dart - Updated for MongoDB
+@HiveType(typeId: 0)
 class ExpenseItem {
-  final String? id; // MongoDB ObjectId
+  @HiveField(0)
   final String name;
-  final String amount;
-  final DateTime dateTime;
+
+  @HiveField(1)
+  final double amount;
+
+  @HiveField(2)
+  final DateTime date;
+
+  @HiveField(3)
   final String category;
-  final String? userId; // Link to user
+
+  @HiveField(4)
+  final bool isRecurring;
+
+  @HiveField(5)
+  final DateTime? dueDate;
+
+  @HiveField(6)
+  final double? limit;
+
+  @HiveField(7)
+  final DateTime? limitStartDate;
+
+  @HiveField(8)
+  final DateTime? limitEndDate;
 
   ExpenseItem({
-    this.id,
     required this.name,
     required this.amount,
-    required this.dateTime,
+    required this.date,
     required this.category,
-    this.userId,
+    this.isRecurring = false,
+    this.dueDate,
+    this.limit,
+    this.limitStartDate,
+    this.limitEndDate,
   });
-
-  factory ExpenseItem.fromJson(Map<String, dynamic> json) {
-    return ExpenseItem(
-      id: json['_id']?.toString(),
-      name: json['name'],
-      amount: json['amount'],
-      dateTime: DateTime.parse(json['dateTime']),
-      category: json['category'],
-      userId: json['userId'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {
-      'name': name,
-      'amount': amount,
-      'dateTime': dateTime.toIso8601String(),
-      'category': category,
-    };
-
-    if (id != null) data['_id'] = id;
-    if (userId != null) data['userId'] = userId;
-
-    return data;
-  }
 }

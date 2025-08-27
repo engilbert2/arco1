@@ -1,8 +1,40 @@
 import 'package:hanabudget/database/mongo_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mongo_dart/mongo_dart.dart';
 
 class AuthService {
   final MongoDBService _mongoService = MongoDBService();
+
+  // ==============================
+  // CHECK USERNAME AVAILABILITY
+  // ==============================
+  Future<Map<String, dynamic>> checkUsernameAvailability(String username) async {
+    try {
+      // Connect to MongoDB
+      await _mongoService.connect();
+
+      // Check if username exists (case-insensitive)
+      String cleanUsername = username.trim().toLowerCase();
+
+      // Use the static getter directly instead of through instance
+      var existingUser = await MongoDBService.usersCollection.findOne(
+          where.eq('username', RegExp('^${RegExp.escape(cleanUsername)}\$', caseSensitive: false))
+      );
+
+      return {
+        'available': existingUser == null,
+        'message': existingUser == null
+            ? 'Username is available'
+            : 'Username already taken',
+      };
+    } catch (e) {
+      print('Username check error: $e');
+      return {
+        'available': false,
+        'message': 'Error checking username availability',
+      };
+    }
+  }
 
   // ==============================
   // SIGN UP USER
@@ -62,7 +94,7 @@ class AuthService {
 
       if (user != null) {
         // save user session
-        await _saveUserSession(user);
+        await saveUserSession(user); // Changed to public method
 
         return {
           'success': true,
@@ -85,9 +117,9 @@ class AuthService {
   }
 
   // ==============================
-  // SAVE USER SESSION LOCALLY
+  // SAVE USER SESSION LOCALLY (NOW PUBLIC)
   // ==============================
-  Future<void> _saveUserSession(Map<String, dynamic> user) async {
+  Future<void> saveUserSession(Map<String, dynamic> user) async {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
 
@@ -104,8 +136,11 @@ class AuthService {
       await prefs.setString('firstName', user['firstName']?.toString() ?? '');
       await prefs.setString('lastName', user['lastName']?.toString() ?? '');
       await prefs.setBool('isLoggedIn', true);
+
+      print('✅ User session saved: ${user['username']}');
     } catch (e) {
       print('Error saving user session: $e');
+      rethrow; // Re-throw the error so calling code can handle it
     }
   }
 
